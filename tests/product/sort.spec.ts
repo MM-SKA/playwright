@@ -28,34 +28,49 @@ interface ProductsRequestData {
 }
 
 function readRequestData(request: Request): ProductsRequestData {
-  /*
-   * First try JSON request data.
-   */
+  const requestUrl = new URL(request.url());
+
+  const queryData: ProductsRequestData = {
+    page: requestUrl.searchParams.get("page") ?? undefined,
+
+    q: requestUrl.searchParams.get("q") ?? undefined,
+
+    sort: requestUrl.searchParams.get("sort") ?? undefined,
+
+    between: requestUrl.searchParams.get("between") ?? undefined,
+
+    is_rental: requestUrl.searchParams.get("is_rental") ?? undefined,
+  };
+
   try {
-    return request.postDataJSON() as ProductsRequestData;
+    const jsonData = request.postDataJSON() as ProductsRequestData;
+
+    return {
+      ...queryData,
+      ...jsonData,
+    };
   } catch {
-    // Continue to form-data parsing.
+    // Request may not use JSON.
   }
 
-  /*
-   * Handle URL-encoded form data.
-   */
   const rawData = request.postData();
 
   if (!rawData) {
-    return {};
+    return queryData;
   }
 
-  const parameters = new URLSearchParams(rawData);
+  const formData = new URLSearchParams(rawData);
 
   return {
-    page: parameters.get("page") ?? undefined,
+    page: formData.get("page") ?? queryData.page,
 
-    sort: parameters.get("sort") ?? undefined,
+    q: formData.get("q") ?? queryData.q,
 
-    between: parameters.get("between") ?? undefined,
+    sort: formData.get("sort") ?? queryData.sort,
 
-    is_rental: parameters.get("is_rental") ?? undefined,
+    between: formData.get("between") ?? queryData.between,
+
+    is_rental: formData.get("is_rental") ?? queryData.is_rental,
   };
 }
 
@@ -139,6 +154,87 @@ function sortCo2Descending(ratings: string[]): string[] {
   const order = ["A", "B", "C", "D", "E"];
 
   return [...ratings].sort((a, b) => order.indexOf(b) - order.indexOf(a));
+}
+
+function requestContainsSearchAndSort(
+  request: Request,
+  expectedQuery: string,
+  expectedSort: ProductSortOption,
+): boolean {
+  if (!isProductsRequest(request)) {
+    return false;
+  }
+
+  const requestData = readRequestData(request);
+
+  return requestData.q === expectedQuery && requestData.sort === expectedSort;
+}
+
+async function waitForSearchAndSortResponse(
+  page: Page,
+  expectedQuery: string,
+  expectedSort: ProductSortOption,
+): Promise<Response> {
+  return page.waitForResponse(
+    (response) =>
+      response.status() === 200 &&
+      requestContainsSearchAndSort(
+        response.request(),
+        expectedQuery,
+        expectedSort,
+      ),
+  );
+}
+
+async function verifyApiProductsMatchUi(
+  productPage: ProductPage,
+  response: Response,
+): Promise<ProductsApiResponse> {
+  const body = (await response.json()) as ProductsApiResponse;
+
+  const apiProductIds = body.data.map((product: ProductApiItem) => product.id);
+
+  const apiProductNames = body.data.map((product: ProductApiItem) =>
+    product.name.trim(),
+  );
+
+  await expect
+    .poll(async () => productPage.getRenderedProductIds())
+    .toEqual(apiProductIds);
+
+  const uiProductIds = await productPage.getRenderedProductIds();
+
+  const uiProductNames = await productPage.getProductNames();
+
+  expect(uiProductIds).toEqual(apiProductIds);
+
+  expect(uiProductNames).toEqual(apiProductNames);
+
+  return body;
+}
+
+function printComparison(
+  testNumber: string,
+  testName: string,
+  apiData: unknown[],
+  uiData: unknown[],
+): void {
+  console.log(`\n${"=".repeat(80)}`);
+
+  console.log(`TEST ${testNumber}: ${testName}`);
+
+  console.log(`${"=".repeat(80)}`);
+
+  console.table(
+    apiData.map((apiValue, index) => ({
+      Index: index,
+      API: apiValue,
+      UI: uiData[index],
+      Match: JSON.stringify(apiValue) === JSON.stringify(uiData[index]),
+    })),
+  );
+
+  console.log(`${"=".repeat(80)}\n`);
 }
 
 test.describe("Product name sorting", () => {
@@ -418,125 +514,283 @@ test.describe("Product name sorting", () => {
     expect(descIds).not.toEqual(ascIds);
   });
 
-  test(
-  "should render API products in the same order for CO2 rating A-E",
-  async ({ page }) => {
-
-    const productPage =
-      new ProductPage(page);
+  test("should render API products in the same order for CO2 rating A-E", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
 
     await productPage.open();
 
-    const responsePromise =
-      waitForSortedResponse(
-        page,
-        "co2_rating,asc"
-      );
+    const responsePromise = waitForSortedResponse(page, "co2_rating,asc");
 
-    await productPage.selectSort(
-      "co2_rating,asc"
-    );
+    await productPage.selectSort("co2_rating,asc");
 
-    const response =
-      await responsePromise;
+    const response = await responsePromise;
 
-    const body =
-      (await response.json())      as ProductsApiResponse;
+    const body = (await response.json()) as ProductsApiResponse;
 
-    const apiIds =
-      body.data.map(
-        product =>
-          product.id
-      );
+    const apiIds = body.data.map((product) => product.id);
 
-    const apiRatings =
-      body.data.map(
-        product =>
-          product.co2_rating
-      );
+    const apiRatings = body.data.map((product) => product.co2_rating);
 
-    const uiIds =
-      await productPage
-        .getRenderedProductIds();
+    const uiIds = await productPage.getRenderedProductIds();
 
-    const uiRatings =
-      await productPage
-        .getRenderedCo2Ratings();
+    const uiRatings = await productPage.getRenderedCo2Ratings();
 
-    expect(uiIds)
-      .toEqual(apiIds);
+    expect(uiIds).toEqual(apiIds);
 
-    expect(uiRatings)
-      .toEqual(apiRatings);
+    expect(uiRatings).toEqual(apiRatings);
 
-    expect(apiRatings)
-      .toEqual(
-        sortCo2Ascending(
-          apiRatings
-        )
-      );
+    expect(apiRatings).toEqual(sortCo2Ascending(apiRatings));
+  });
 
-  }
-);
-
-test(
-  "should render API products in the same order for CO2 rating E-A",
-  async ({ page }) => {
-
-    const productPage =
-      new ProductPage(page);
+  test("should render API products in the same order for CO2 rating E-A", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
 
     await productPage.open();
 
-    const responsePromise =
-      waitForSortedResponse(
-        page,
-        "co2_rating,desc"
-      );
+    const responsePromise = waitForSortedResponse(page, "co2_rating,desc");
 
-    await productPage.selectSort(
-      "co2_rating,desc"
+    await productPage.selectSort("co2_rating,desc");
+
+    const response = await responsePromise;
+
+    const body = (await response.json()) as ProductsApiResponse;
+
+    const apiIds = body.data.map((product) => product.id);
+
+    const apiRatings = body.data.map((product) => product.co2_rating);
+
+    const uiIds = await productPage.getRenderedProductIds();
+
+    const uiRatings = await productPage.getRenderedCo2Ratings();
+
+    expect(uiIds).toEqual(apiIds);
+
+    expect(uiRatings).toEqual(apiRatings);
+
+    expect(apiRatings).toEqual(sortCo2Descending(apiRatings));
+  });
+
+  test("should preserve search query when sorting", async ({ page }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.open();
+
+    await productPage.search("plier");
+
+    const requestPromise = page.waitForRequest((request) => {
+      const data = readRequestData(request);
+
+      return data.q === "plier" && data.sort === "name,asc";
+    });
+
+    await productPage.selectSort("name,asc");
+
+    const request = await requestPromise;
+
+    const data = readRequestData(request);
+
+    expect(data.q).toBe("plier");
+
+    expect(data.sort).toBe("name,asc");
+  });
+
+  test("should match API and UI after search and name A-Z sorting", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    const searchQuery = "plier";
+
+    await productPage.search(searchQuery);
+
+    await expect(productPage.searchInput).toHaveValue("");
+
+    const responsePromise = waitForSearchAndSortResponse(
+      page,
+      searchQuery,
+      "name,asc",
     );
 
-    const response =
-      await responsePromise;
+    await productPage.selectSort("name,asc");
 
-    const body =
-      (await response.json())      as ProductsApiResponse;
+    const response = await responsePromise;
 
-    const apiIds =
-      body.data.map(
-        product =>
-          product.id
-      );
+    const body = await verifyApiProductsMatchUi(productPage, response);
 
-    const apiRatings =
-      body.data.map(
-        product =>
-          product.co2_rating
-      );
+    const apiNames = body.data.map((product: ProductApiItem) =>
+      product.name.trim(),
+    );
 
-    const uiIds =
-      await productPage
-        .getRenderedProductIds();
+    expect(apiNames).toEqual(sortNamesAscending(apiNames));
 
-    const uiRatings =
-      await productPage
-        .getRenderedCo2Ratings();
+    await expect(productPage.sortSelect).toHaveValue("name,asc");
+  });
 
-    expect(uiIds)
-      .toEqual(apiIds);
+  test("should match API and UI after search and name Z-A sorting", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
 
-    expect(uiRatings)
-      .toEqual(apiRatings);
+    const searchQuery = "plier";
 
-    expect(apiRatings)
-      .toEqual(
-        sortCo2Descending(
-          apiRatings
-        )
-      );
+    await productPage.search(searchQuery);
 
-  }
-);
+    await expect(productPage.searchInput).toHaveValue("");
+
+    const responsePromise = waitForSearchAndSortResponse(
+      page,
+      searchQuery,
+      "name,desc",
+    );
+
+    await productPage.selectSort("name,desc");
+
+    const response = await responsePromise;
+
+    const body = await verifyApiProductsMatchUi(productPage, response);
+
+    const apiNames = body.data.map((product: ProductApiItem) =>
+      product.name.trim(),
+    );
+
+    expect(apiNames).toEqual(sortNamesDescending(apiNames));
+
+    await expect(productPage.sortSelect).toHaveValue("name,desc");
+  });
+
+  test("should match API and UI after search and price low-high sorting", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    const searchQuery = "plier";
+
+    await productPage.search(searchQuery);
+
+    const responsePromise = waitForSearchAndSortResponse(
+      page,
+      searchQuery,
+      "price,asc",
+    );
+
+    await productPage.selectSort("price,asc");
+
+    const response = await responsePromise;
+
+    const body = await verifyApiProductsMatchUi(productPage, response);
+
+    const apiPrices = body.data.map((product: ProductApiItem) => product.price);
+
+    const uiPrices = await productPage.getProductPrices();
+
+    expect(uiPrices).toEqual(apiPrices);
+
+    expect(apiPrices).toEqual(sortPricesAscending(apiPrices));
+
+    await expect(productPage.sortSelect).toHaveValue("price,asc");
+  });
+
+  test("should match API and UI after search and price high-low sorting", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    const searchQuery = "plier";
+
+    await productPage.search(searchQuery);
+
+    const responsePromise = waitForSearchAndSortResponse(
+      page,
+      searchQuery,
+      "price,desc",
+    );
+
+    await productPage.selectSort("price,desc");
+
+    const response = await responsePromise;
+
+    const body = await verifyApiProductsMatchUi(productPage, response);
+
+    const apiPrices = body.data.map((product: ProductApiItem) => product.price);
+
+    const uiPrices = await productPage.getProductPrices();
+
+    expect(uiPrices).toEqual(apiPrices);
+
+    expect(apiPrices).toEqual(sortPricesDescending(apiPrices));
+
+    await expect(productPage.sortSelect).toHaveValue("price,desc");
+  });
+
+  test("should match API and UI after search and CO2 A-E sorting", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    const searchQuery = "plier";
+
+    await productPage.search(searchQuery);
+
+    const responsePromise = waitForSearchAndSortResponse(
+      page,
+      searchQuery,
+      "co2_rating,asc",
+    );
+
+    await productPage.selectSort("co2_rating,asc");
+
+    const response = await responsePromise;
+
+    const body = await verifyApiProductsMatchUi(productPage, response);
+
+    const apiRatings = body.data.map(
+      (product: ProductApiItem) => product.co2_rating,
+    );
+
+    const uiRatings = await productPage.getRenderedCo2Ratings();
+
+    expect(uiRatings).toEqual(apiRatings);
+
+    expect(apiRatings).toEqual(sortCo2Ascending(apiRatings));
+
+    await expect(productPage.sortSelect).toHaveValue("co2_rating,asc");
+  });
+
+  test("should match API and UI after search and CO2 E-A sorting", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    const searchQuery = "plier";
+
+    await productPage.search(searchQuery);
+
+    const responsePromise = waitForSearchAndSortResponse(
+      page,
+      searchQuery,
+      "co2_rating,desc",
+    );
+
+    await productPage.selectSort("co2_rating,desc");
+
+    const response = await responsePromise;
+
+    const body = await verifyApiProductsMatchUi(productPage, response);
+
+    const apiRatings = body.data.map(
+      (product: ProductApiItem) => product.co2_rating,
+    );
+
+    const uiRatings = await productPage.getRenderedCo2Ratings();
+
+    expect(uiRatings).toEqual(apiRatings);
+
+    expect(apiRatings).toEqual(sortCo2Descending(apiRatings));
+
+    await expect(productPage.sortSelect).toHaveValue("co2_rating,desc");
+  });
 });
