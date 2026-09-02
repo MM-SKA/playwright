@@ -1,16 +1,17 @@
-import { Locator, Page } from "@playwright/test";
+import { expect , Locator, Page } from "@playwright/test";
 
 export class ProductPage {
   readonly searchInput: Locator;
   readonly searchButton: Locator;
   readonly resetButton: Locator;
+  readonly productCards: Locator;
 
   constructor(private readonly page: Page) {
     this.searchInput = page.locator('[data-test="search-query"]');
-
     this.searchButton = page.locator('[data-test="search-submit"]');
-
     this.resetButton = page.locator('[data-test="search-reset"]');
+
+    this.productCards = page.locator(".card");
   }
 
   async open(): Promise<void> {
@@ -25,5 +26,9 @@ export class ProductPage {
 
   async clearSearch(): Promise<void> {
     await this.resetButton.click();
+  }
+
+  async expectSearchExecuted(): Promise<void> {
+    await expect(this.searchInput).toHaveValue("");
   }
 }
