@@ -2,11 +2,24 @@ import { expect, Page, Request, Response, test } from "@playwright/test";
 
 import { ProductPage, ProductSortOption } from "../pages/product.page";
 
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Brand {
+  id: string;
+  name: string;
+}
+
 interface ProductApiItem {
   id: string;
   name: string;
   price: number;
   co2_rating: string;
+
+  category: Category;
+  brand: Brand;
 }
 
 interface ProductsApiResponse {
@@ -25,6 +38,8 @@ interface ProductsRequestData {
   sort?: string;
   between?: string;
   is_rental?: string | boolean;
+  by_category?: string;
+  by_brand?: string;
 }
 
 function readRequestData(request: Request): ProductsRequestData {
@@ -40,6 +55,10 @@ function readRequestData(request: Request): ProductsRequestData {
     between: requestUrl.searchParams.get("between") ?? undefined,
 
     is_rental: requestUrl.searchParams.get("is_rental") ?? undefined,
+
+    by_category: requestUrl.searchParams.get("by_category") ?? undefined,
+
+    by_brand: requestUrl.searchParams.get("by_brand") ?? undefined,
   };
 
   try {
@@ -71,15 +90,19 @@ function readRequestData(request: Request): ProductsRequestData {
     between: formData.get("between") ?? queryData.between,
 
     is_rental: formData.get("is_rental") ?? queryData.is_rental,
+
+    by_category: formData.get("by_category") ?? queryData.by_category,
+
+    by_brand: formData.get("by_brand") ?? queryData.by_brand,
   };
 }
 
 function isProductsRequest(request: Request): boolean {
-  const requestUrl = new URL(request.url());
+  const url = new URL(request.url());
 
   return (
-    requestUrl.hostname === "api.practicesoftwaretesting.com" &&
-    requestUrl.pathname === "/products"
+    url.hostname === "api.practicesoftwaretesting.com" &&
+    url.pathname === "/products"
   );
 }
 
@@ -792,5 +815,130 @@ test.describe("Product name sorting", () => {
     expect(apiRatings).toEqual(sortCo2Descending(apiRatings));
 
     await expect(productPage.sortSelect).toHaveValue("co2_rating,desc");
+  });
+
+  test("AC10 should display category filters", async ({ page }) => {
+    await expect(
+      page.locator('input[name="category_id"]').first(),
+    ).toBeVisible();
+
+    const categories = await page.locator('input[name="category_id"]').count();
+
+    expect(categories).toBeGreaterThan(0);
+  });
+
+  test("AC11 should display hierarchical categories", async ({ page }) => {
+    await expect(
+      page.locator("#filters").getByText("Hand Tools"),
+    ).toBeVisible();
+
+    await expect(page.locator("#filters").getByText("Hammer")).toBeVisible();
+
+    await expect(page.locator("#filters").getByText("Pliers")).toBeVisible();
+  });
+
+  test("AC12 should select all child categories when parent selected", async ({
+    page,
+  }) => {
+    const parentCategory = page.locator(
+      '[data-test="category-01M1GB8GFJH70BEA8ZX71GQ591"]',
+    );
+
+    const requestPromise = page.waitForRequest((request) => {
+      const data = readRequestData(request);
+
+      return data.by_category !== undefined;
+    });
+
+    await parentCategory.check();
+
+    const request = await requestPromise;
+
+    const requestData = readRequestData(request);
+
+    const categories = requestData.by_category!.split(",");
+
+    expect(categories.length).toBeGreaterThan(1);
+  });
+
+  test("AC14 should display brand filters", async ({ page }) => {
+    await expect(page.locator('input[name="brand_id"]').first()).toBeVisible();
+
+    const brands = await page.locator('input[name="brand_id"]').count();
+
+    expect(brands).toBeGreaterThan(0);
+  });
+
+  test("AC15 should filter products by brand", async ({ page }) => {
+    const forgeFlex = page.locator('[data-test^="brand-"]').first();
+
+    const responsePromise = page.waitForResponse((response) =>
+      response.url().includes("/products"),
+    );
+
+    await forgeFlex.check();
+
+    const response = await responsePromise;
+
+    const body = (await response.json()) as ProductsApiResponse;
+
+    body.data.forEach((product) => {
+      expect(product.brand.name).toBe("ForgeFlex Tools");
+    });
+
+    const apiIds = body.data.map((p) => p.id);
+
+    const uiIds = await new ProductPage(page).getRenderedProductIds();
+
+    expect(uiIds).toEqual(apiIds);
+  });
+
+  test("AC16 should combine category and brand filters", async ({ page }) => {
+    const pliers = page.locator(
+      '[data-test="category-01M1GB8GG81HPWNBG3NT691TBW"]',
+    );
+
+    const forgeFlex = page.locator(
+      '[data-test="brand-01M1GB8G39RV1GZ4B67KCPMCP0"]',
+    );
+
+    await pliers.check();
+
+    await forgeFlex.check();
+
+    await expect(forgeFlex).toBeChecked();
+
+    const response = await page.waitForResponse((response) => {
+      if (!isProductsRequest(response.request())) {
+        return false;
+      }
+
+      const requestData = readRequestData(response.request());
+
+      return (
+        requestData.by_category !== undefined &&
+        requestData.by_brand !== undefined
+      );
+    });
+
+    const body = (await response.json()) as ProductsApiResponse;
+
+    const requestData = readRequestData(response.request());
+
+    console.log(requestData);
+
+    expect(requestData.by_brand).toBeDefined();
+
+    body.data.forEach((product) => {
+      expect(product.category.name).toBe("Pliers");
+
+      expect(product.brand.name).toBe("ForgeFlex Tools");
+    });
+
+    const apiIds = body.data.map((product) => product.id);
+
+    const uiIds = await new ProductPage(page).getRenderedProductIds();
+
+    expect(uiIds).toEqual(apiIds);
   });
 });
