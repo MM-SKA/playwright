@@ -1,5 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { ProductPage, ProductSortOption } from "../pages/product.page";
+import { expect, Page, Response, test } from "@playwright/test";
+
+import { ProductPage } from "../pages/product.page";
 
 interface ProductDetailResponse {
   id: string;
@@ -22,6 +23,161 @@ interface ProductDetailResponse {
     title: string;
     file_name: string;
   };
+}
+
+interface ProductListItem {
+  id: string;
+  name: string;
+  price: number;
+  in_stock: boolean;
+  is_rental: boolean;
+}
+
+interface ProductsListResponse {
+  data: ProductListItem[];
+}
+
+interface SelectedCartProduct {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface AddToCartRequest {
+  product_id: string;
+  quantity: number;
+}
+
+interface AddToCartResponse {
+  result: string;
+}
+
+interface CartItem {
+  id: string;
+  quantity: number;
+  cart_id: string;
+  product_id: string;
+
+  product: {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    in_stock: boolean;
+    is_rental: boolean;
+  };
+}
+
+interface CartResponse {
+  id: string;
+  cart_items: CartItem[];
+}
+
+const baseUrl = "https://practicesoftwaretesting.com";
+
+const apiHost = "api.practicesoftwaretesting.com";
+
+function isProductsListResponse(response: Response): boolean {
+  const url = new URL(response.url());
+
+  const method = response.request().method();
+
+  return (
+    response.ok() &&
+    url.hostname === apiHost &&
+    url.pathname === "/products" &&
+    (method === "QUERY" || method === "GET")
+  );
+}
+
+function isCartPostResponse(response: Response): boolean {
+  const url = new URL(response.url());
+
+  return (
+    response.ok() &&
+    response.request().method() === "POST" &&
+    url.hostname === apiHost &&
+    /^\/carts\/[^/]+$/.test(url.pathname)
+  );
+}
+
+function isCartGetResponse(response: Response): boolean {
+  const url = new URL(response.url());
+
+  return (
+    response.ok() &&
+    response.request().method() === "GET" &&
+    url.hostname === apiHost &&
+    /^\/carts\/[^/]+$/.test(url.pathname)
+  );
+}
+
+function getCartIdFromResponse(response: Response): string {
+  const url = new URL(response.url());
+
+  const cartId = url.pathname.split("/").filter(Boolean).at(-1);
+
+  if (!cartId) {
+    throw new Error(`Cart ID was not found in response URL: ${response.url()}`);
+  }
+
+  return cartId;
+}
+
+function parseMoney(text: string): number {
+  return Number(text.replace(/[^0-9.-]/g, ""));
+}
+
+async function addProductThroughUi(
+  page: Page,
+  product: SelectedCartProduct,
+): Promise<string> {
+  await page.goto(`${baseUrl}/product/${product.id}`, {
+    waitUntil: "domcontentloaded",
+  });
+
+  const productName = page.locator('[data-test="product-name"]');
+
+  const quantityInput = page.locator('[data-test="quantity"]');
+
+  const addToCartButton = page.locator('[data-test="add-to-cart"]');
+
+  await expect(productName).toHaveText(product.name);
+
+  await expect(quantityInput).toBeEnabled();
+
+  await expect(addToCartButton).toBeEnabled();
+
+  await quantityInput.fill(String(product.quantity));
+
+  await expect(quantityInput).toHaveValue(String(product.quantity));
+
+  const postResponsePromise = page.waitForResponse((response) =>
+    isCartPostResponse(response),
+  );
+
+  await addToCartButton.click();
+
+  const postResponse = await postResponsePromise;
+
+  const requestBody = postResponse.request().postDataJSON() as AddToCartRequest;
+
+  expect(requestBody.product_id).toBe(product.id);
+
+  expect(requestBody.quantity).toBe(product.quantity);
+
+  const responseBody = (await postResponse.json()) as AddToCartResponse;
+
+  expect(responseBody.result).toBe("item added or updated");
+
+  const successToast = page.locator(".toast-success");
+
+  await expect(successToast).toBeVisible();
+
+  await expect(successToast).toContainText("Product added to shopping cart.");
+
+  return getCartIdFromResponse(postResponse);
 }
 
 test.describe("Product Detail", () => {
@@ -322,5 +478,239 @@ test.describe("Product Detail", () => {
     // Add to cart disabled
     //
     await expect(page.locator('[data-test="add-to-cart"]')).toBeDisabled();
+  });
+
+  test("7. should add three in-stock products, verify cart and remove all items", async ({
+    page,
+  }) => {
+    /*
+     * Start waiting before navigating so
+     * the initial products response is not missed.
+     */
+    const productsResponsePromise = page.waitForResponse(
+      (response) => isProductsListResponse(response),
+      {
+        timeout: 15_000,
+      },
+    );
+
+    await page.goto(baseUrl, {
+      waitUntil: "domcontentloaded",
+    });
+
+    const productsResponse = await productsResponsePromise;
+
+    console.log(
+      "Products request:",
+      productsResponse.request().method(),
+      productsResponse.url(),
+    );
+
+    const productsBody =
+      (await productsResponse.json()) as ProductsListResponse;
+
+    /*
+     * Dynamically select three products.
+     * No product IDs or names are hardcoded.
+     */
+    const inStockProducts = productsBody.data
+      .filter((product) => product.in_stock && !product.is_rental)
+      .slice(0, 3);
+
+    expect(
+      inStockProducts,
+      "Expected at least three in-stock, non-rental products",
+    ).toHaveLength(3);
+
+    /*
+     * Give each product a different quantity.
+     */
+    const selectedProducts: SelectedCartProduct[] = inStockProducts.map(
+      (product, index) => ({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: index + 1,
+      }),
+    );
+
+    const capturedCartIds: string[] = [];
+
+    /*
+     * Add each product through the
+     * product-detail UI.
+     */
+    for (const product of selectedProducts) {
+      const cartId = await addProductThroughUi(page, product);
+
+      capturedCartIds.push(cartId);
+    }
+
+    /*
+     * Ensure every POST was sent to
+     * the same dynamically created cart.
+     */
+    expect(new Set(capturedCartIds).size).toBe(1);
+
+    const dynamicCartId = capturedCartIds[0];
+
+    expect(dynamicCartId).toBeTruthy();
+
+    console.log("Dynamic cart ID:", dynamicCartId);
+
+    /*
+     * Listen before navigating because
+     * checkout loads the cart immediately.
+     */
+    const cartResponsePromise = page.waitForResponse(
+      (response) =>
+        isCartGetResponse(response) &&
+        getCartIdFromResponse(response) === dynamicCartId,
+    );
+
+    await page.goto(`${baseUrl}/checkout`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    const cartResponse = await cartResponsePromise;
+
+    const cartBody = (await cartResponse.json()) as CartResponse;
+
+    /*
+     * Verify that the GET response belongs
+     * to the same dynamic cart.
+     */
+    expect(cartBody.id).toBe(dynamicCartId);
+
+    expect(cartBody.cart_items.length).toBe(3);
+
+    /*
+     * Verify selected products against
+     * the cart API response.
+     */
+    for (const selectedProduct of selectedProducts) {
+      const apiCartItem = cartBody.cart_items.find(
+        (item) => item.product_id === selectedProduct.id,
+      );
+
+      expect(apiCartItem).toBeDefined();
+
+      expect(apiCartItem?.product.id).toBe(selectedProduct.id);
+
+      expect(apiCartItem?.product.name).toBe(selectedProduct.name);
+
+      expect(apiCartItem?.quantity).toBe(selectedProduct.quantity);
+
+      expect(apiCartItem?.product.price).toBe(selectedProduct.price);
+    }
+
+    /*
+     * Verify the number of UI cart rows.
+     */
+    const cartRows = page.locator("app-cart table tbody tr");
+
+    await expect(cartRows).toHaveCount(cartBody.cart_items.length);
+
+    /*
+     * Verify every API cart item against
+     * its corresponding UI row.
+     */
+    for (const apiCartItem of cartBody.cart_items) {
+      const productTitle = page.locator('[data-test="product-title"]').filter({
+        hasText: new RegExp(`^${apiCartItem.product.name}$`),
+      });
+
+      await expect(
+        page.getByText(apiCartItem.product.name, {
+          exact: true,
+        }),
+      ).toBeVisible();
+
+      const row = page
+        .getByText(apiCartItem.product.name, {
+          exact: true,
+        })
+        .locator("xpath=ancestor::tr");
+
+      const quantity = row.locator('[data-test="product-quantity"]');
+
+      const unitPrice = row.locator('[data-test="product-price"]');
+
+      const linePrice = row.locator('[data-test="line-price"]');
+
+      await expect(quantity).toHaveValue(String(apiCartItem.quantity));
+
+      await expect(unitPrice).toHaveText(
+        `$${apiCartItem.product.price.toFixed(2)}`,
+      );
+
+      const expectedLinePrice =
+        apiCartItem.product.price * apiCartItem.quantity;
+
+      await expect(linePrice).toHaveText(`$${expectedLinePrice.toFixed(2)}`);
+    }
+
+    /*
+     * Verify full cart total.
+     */
+    const expectedCartTotal = cartBody.cart_items.reduce(
+      (total, item) => total + item.product.price * item.quantity,
+      0,
+    );
+
+    const cartTotal = page.locator('[data-test="cart-total"]');
+
+    await expect(cartTotal).toBeVisible();
+
+    const displayedCartTotal = parseMoney(await cartTotal.innerText());
+
+    expect(displayedCartTotal).toBeCloseTo(expectedCartTotal, 2);
+
+    console.table(
+      cartBody.cart_items.map((item) => ({
+        product: item.product.name,
+        productId: item.product_id,
+        quantity: item.quantity,
+        unitPrice: item.product.price,
+        lineTotal: item.product.price * item.quantity,
+      })),
+    );
+
+    console.log("Expected cart total:", expectedCartTotal.toFixed(2));
+
+    console.log("Displayed cart total:", displayedCartTotal.toFixed(2));
+
+    /*
+     * Cleanup:
+     * Delete all cart items through UI.
+     */
+    while ((await cartRows.count()) > 0) {
+      const rowCountBefore = await cartRows.count();
+
+      const firstRow = cartRows.first();
+
+      const productBeingDeleted = (
+        await firstRow.locator('[data-test="product-title"]').innerText()
+      ).trim();
+
+      const deleteButton = firstRow.locator("a.btn-danger");
+
+      await expect(deleteButton).toBeVisible();
+
+      await deleteButton.click();
+
+      await expect(cartRows).toHaveCount(rowCountBefore - 1);
+
+      console.log(`Deleted from cart: ${productBeingDeleted}`);
+    }
+
+    /*
+     * Final cleanup verification.
+     */
+    await expect(page.locator('[data-test="product-title"]')).toHaveCount(0);
+
+    await expect(cartRows).toHaveCount(0);
+
+    console.log("Cart cleanup completed.");
   });
 });
