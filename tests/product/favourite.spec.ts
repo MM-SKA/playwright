@@ -24,7 +24,7 @@ test.describe("Favorites - Authenticated", () => {
   test.beforeEach(async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.open();
-    await loginPage.login("Samarth3005@gmail.com", "Samarth3005@");
+    await loginPage.login("test@test.com", "Samarth3005@");
     console.log("URL after login:", page.url());
     await page.goto("https://practicesoftwaretesting.com");
   });
