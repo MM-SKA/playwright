@@ -393,4 +393,6 @@ test.describe("Product name sorting", () => {
 
     expect(uiIds).toEqual(apiIds);
   });
+
+  
 });

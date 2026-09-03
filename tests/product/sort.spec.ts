@@ -40,6 +40,7 @@ interface ProductsRequestData {
   is_rental?: string | boolean;
   by_category?: string;
   by_brand?: string;
+  by_category_slug?: string;
 }
 
 function readRequestData(request: Request): ProductsRequestData {
@@ -59,6 +60,9 @@ function readRequestData(request: Request): ProductsRequestData {
     by_category: requestUrl.searchParams.get("by_category") ?? undefined,
 
     by_brand: requestUrl.searchParams.get("by_brand") ?? undefined,
+
+    by_category_slug:
+      requestUrl.searchParams.get("by_category_slug") ?? undefined,
   };
 
   try {
@@ -94,6 +98,9 @@ function readRequestData(request: Request): ProductsRequestData {
     by_category: formData.get("by_category") ?? queryData.by_category,
 
     by_brand: formData.get("by_brand") ?? queryData.by_brand,
+
+    by_category_slug:
+      formData.get("by_category_slug") ?? queryData.by_category_slug,
   };
 }
 
@@ -1004,5 +1011,82 @@ test.describe("Product name sorting", () => {
     expect(maxValue).toBeLessThan(initialMax);
 
     expect(body.data.length).toBeGreaterThan(0);
+  });
+
+  test("should navigate to Power Tools category from navbar", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.open();
+
+    const responsePromise = page.waitForResponse((response) => {
+      if (!isProductsRequest(response.request())) {
+        return false;
+      }
+
+      const requestData = readRequestData(response.request());
+
+      return requestData.by_category_slug === "power-tools";
+    });
+
+    await page.locator('[data-test="nav-categories"]').click();
+
+    await page.locator('[data-test="nav-power-tools"]').click();
+
+    const response = await responsePromise;
+
+    //
+    // URL changed
+    //
+    await expect(page).toHaveURL(/category\/power-tools/);
+
+    const body = (await response.json()) as ProductsApiResponse;
+
+    //
+    // API request contains slug
+    //
+    const requestData = readRequestData(response.request());
+
+    expect(requestData.by_category_slug).toBe("power-tools");
+
+    //
+    // Only Power Tools family products returned
+    //
+    body.data.forEach((product) => {
+      expect(["Drill", "Saw", "Sander", "Grinder"]).toContain(
+        product.category.name,
+      );
+    });
+
+    //
+    // API IDs
+    //
+    const apiIds = body.data.map((product) => product.id);
+
+    //
+    // UI IDs
+    //
+    await expect
+      .poll(async () => productPage.getRenderedProductIds())
+      .toEqual(apiIds);
+
+    const uiIds = await productPage.getRenderedProductIds();
+
+    expect(uiIds).toEqual(apiIds);
+
+    //
+    // Verify category filter section visible
+    //
+    await expect(page.locator('#filters')).toBeVisible();
+
+    //
+    // Verify category hierarchy
+    //
+    await expect(page.locator("#filters")).toContainText("By category:");
+    // await expect(page.locator("#filters").getByText("Power Tools"),).toBeVisible();
+    // await expect(page.locator("#filters").getByText("Drill")).toBeVisible();
+    // await expect(page.locator("#filters").getByText("Saw")).toBeVisible();
+    // await expect(page.locator("#filters").getByText("Sander")).toBeVisible();
   });
 });
