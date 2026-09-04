@@ -50,3 +50,22 @@ export interface SelectedCartProduct {
   price: number;
   quantity: number;
 }
+
+export interface ProductApiItem {
+  id: string;
+  name: string;
+  price: number;
+  co2_rating: string;
+
+  category: Category;
+  brand: Brand;
+}
+export interface ProductsApiResponse {
+  current_page: number;
+  data: ProductApiItem[];
+  from: number;
+  last_page: number;
+  per_page: number;
+  to: number;
+  total: number;
+} 
