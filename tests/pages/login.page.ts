@@ -13,11 +13,15 @@ export class LoginPage {
 
     this.loginButton = page.locator('[data-test="login-submit"]');
 
-    this.passwordToggle = page.locator("#password").locator("..").locator("..").locator("button");
+    this.passwordToggle = page
+      .locator("#password")
+      .locator("..")
+      .locator("..")
+      .locator("button");
   }
 
   async open(): Promise<void> {
-    await this.page.goto("https://practicesoftwaretesting.com/auth/login");
+    await this.page.goto("/auth/login");
   }
 
   async login(email: string, password: string): Promise<void> {
@@ -25,6 +29,10 @@ export class LoginPage {
 
     await this.passwordInput.fill(password);
 
-    await this.loginButton.click();
+    await Promise.all([
+      this.page.waitForURL(/account/),
+
+      this.loginButton.click(),
+    ]);
   }
 }

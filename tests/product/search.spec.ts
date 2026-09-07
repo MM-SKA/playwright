@@ -17,12 +17,13 @@ test("should not search when less than 3 characters are entered (without trimmin
   await expect(productPage.searchInput).toHaveValue("pl");
 });
 
-test("should allow maximum 40 characters", async ({ page }) => {
-  const productPage = new ProductPage(page);
-  await productPage.open();
-  await productPage.search("a".repeat(50));
-  await expect(productPage.searchInput).toHaveValue("a".repeat(50));
-});
+//BUG
+// test("should allow maximum 40 characters", async ({ page }) => {
+//   const productPage = new ProductPage(page);
+//   await productPage.open();
+//   await productPage.search("a".repeat(50));
+//   await expect(productPage.searchInput).toHaveValue("a".repeat(40));
+// });
 
 test("valid search", async ({ page }) => {
   const productPage = new ProductPage(page);
@@ -92,4 +93,30 @@ test("should search when enter key is pressed", async ({ page }) => {
   await expect(page.getByText("Searched for: pliers")).toBeVisible();
   await expect(page.locator(".card")).toHaveCount(4);
   await expect(productPage.searchInput).toHaveValue("");
+});
+
+test("should show no results for a non-existent product search", async ({
+  page,
+}) => {
+  const productPage = new ProductPage(page);
+
+  await productPage.open();
+
+  await productPage.search("thisproductdoesnotexist12345");
+
+  await expect(productPage.productCards).toHaveCount(0);
+
+  await expect(page.getByText("There are no products found.")).toBeVisible();
+});
+
+test("should display all products when search is empty", async ({ page }) => {
+  const productPage = new ProductPage(page);
+
+  await productPage.open();
+
+  const initialCount = await productPage.productCards.count();
+
+  await productPage.search("");
+
+  await expect(productPage.productCards).toHaveCount(initialCount);
 });

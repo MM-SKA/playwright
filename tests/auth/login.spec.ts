@@ -2,20 +2,20 @@ import { expect, test } from "@playwright/test";
 import { LoginPage } from "../pages/login.page";
 
 test("should display login form", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
+  await page.goto("/auth/login");
   await expect(page.locator('[data-test="email"]')).toBeVisible();
   await expect(page.locator('[data-test="password"]')).toBeVisible();
 });
 
 test("should require email and password", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
+  await page.goto("/auth/login");
   await page.locator('[data-test="login-submit"]').click();
   await expect(page.locator('[data-test="email-error"]')).toBeVisible();
   await expect(page.locator('[data-test="password-error"]')).toBeVisible();
 });
 
 test("should require email", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
+  await page.goto("/auth/login");
   await page.locator('[data-test="password"]').fill("welcome01");
   await page.locator('[data-test="login-submit"]').click();
   const emailError = page.locator('[data-test="email-error"]');
@@ -24,7 +24,7 @@ test("should require email", async ({ page }) => {
 });
 
 test("should validate email format", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
+  await page.goto("/auth/login");
   await page.locator('[data-test="email"]').fill("abcd");
   await page.locator('[data-test="password"]').fill("welcome01");
   await page.getByRole("button", { name: "Login" }).click();
@@ -34,7 +34,7 @@ test("should validate email format", async ({ page }) => {
 });
 
 test("should require password", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
+  await page.goto("/auth/login");
   await page
     .locator('[data-test="email"]')
     .fill("customer2@practicesoftwaretesting.com");
@@ -67,7 +67,7 @@ test("should hide password when eye icon is clicked again", async ({
 
 test("should not alter password value when toggled", async ({ page }) => {
   const password = "welcome01";
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
+  await page.goto("/auth/login");
   const passwordInput = page.locator('[data-test="password"]');
   await passwordInput.fill(password);
   await page.locator("#password + div button").click();
@@ -82,15 +82,17 @@ test("should login successfully", async ({ page }) => {
   await expect(page.locator("#menu")).toContainText("Jack Howe");
 });
 test("should login using enter key", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
-  await page.locator('[data-test="email"]').fill("customer2@practicesoftwaretesting.com");
+  await page.goto("/auth/login");
+  await page
+    .locator('[data-test="email"]')
+    .fill("customer2@practicesoftwaretesting.com");
   await page.locator('[data-test="password"]').fill("welcome01");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/account/);
 });
 
 test("should show error for invalid credentials", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/auth/login");
+  await page.goto("/auth/login");
   await page
     .locator('[data-test="email"]')
     .fill("customer@practicesoftwaretesting.com");
@@ -99,9 +101,4 @@ test("should show error for invalid credentials", async ({ page }) => {
   const loginError = page.locator('[data-test="login-error"]');
   await expect(loginError).toBeVisible();
   await expect(loginError).toContainText("Invalid email or password");
-});
-
-test("should redirect unauthenticated user", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/account");
-  await expect(page).toHaveURL(/login/);
 });

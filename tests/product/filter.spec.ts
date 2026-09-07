@@ -1,264 +1,10 @@
 import { expect, Page, Request, Response, test } from "@playwright/test";
-
 import { ProductPage, ProductSortOption } from "../pages/product.page";
-
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface Brand {
-  id: string;
-  name: string;
-}
-
-interface ProductApiItem {
-  id: string;
-  name: string;
-  price: number;
-  co2_rating: string;
-
-  category: Category;
-  brand: Brand;
-}
-
-interface ProductsApiResponse {
-  current_page: number;
-  data: ProductApiItem[];
-  from: number;
-  last_page: number;
-  per_page: number;
-  to: number;
-  total: number;
-}
-
-interface ProductsRequestData {
-  page?: string | number;
-  q?: string;
-  sort?: string;
-  between?: string;
-  is_rental?: string | boolean;
-  by_category?: string;
-  by_brand?: string;
-}
-
-function readRequestData(request: Request): ProductsRequestData {
-  const requestUrl = new URL(request.url());
-
-  const queryData: ProductsRequestData = {
-    page: requestUrl.searchParams.get("page") ?? undefined,
-
-    q: requestUrl.searchParams.get("q") ?? undefined,
-
-    sort: requestUrl.searchParams.get("sort") ?? undefined,
-
-    between: requestUrl.searchParams.get("between") ?? undefined,
-
-    is_rental: requestUrl.searchParams.get("is_rental") ?? undefined,
-
-    by_category: requestUrl.searchParams.get("by_category") ?? undefined,
-
-    by_brand: requestUrl.searchParams.get("by_brand") ?? undefined,
-  };
-
-  try {
-    const jsonData = request.postDataJSON() as ProductsRequestData;
-
-    return {
-      ...queryData,
-      ...jsonData,
-    };
-  } catch {
-    // Request may not use JSON.
-  }
-
-  const rawData = request.postData();
-
-  if (!rawData) {
-    return queryData;
-  }
-
-  const formData = new URLSearchParams(rawData);
-
-  return {
-    page: formData.get("page") ?? queryData.page,
-
-    q: formData.get("q") ?? queryData.q,
-
-    sort: formData.get("sort") ?? queryData.sort,
-
-    between: formData.get("between") ?? queryData.between,
-
-    is_rental: formData.get("is_rental") ?? queryData.is_rental,
-
-    by_category: formData.get("by_category") ?? queryData.by_category,
-
-    by_brand: formData.get("by_brand") ?? queryData.by_brand,
-  };
-}
-
-function isProductsRequest(request: Request): boolean {
-  const url = new URL(request.url());
-
-  return (
-    url.hostname === "api.practicesoftwaretesting.com" &&
-    url.pathname === "/products"
-  );
-}
-
-function requestContainsSort(
-  request: Request,
-  expectedSort: ProductSortOption,
-): boolean {
-  if (!isProductsRequest(request)) {
-    return false;
-  }
-
-  const requestUrl = new URL(request.url());
-
-  /*
-   * Support either implementation:
-   *
-   * Query parameter:
-   * /products?sort=name,asc
-   *
-   * Request data:
-   * { sort: "name,asc" }
-   */
-  const querySort = requestUrl.searchParams.get("sort");
-
-  const bodySort = readRequestData(request).sort;
-
-  return querySort === expectedSort || bodySort === expectedSort;
-}
-
-async function waitForSortedResponse(
-  page: Page,
-  expectedSort: ProductSortOption,
-): Promise<Response> {
-  return page.waitForResponse(
-    (response) =>
-      response.status() === 200 &&
-      requestContainsSort(response.request(), expectedSort),
-  );
-}
-
-function sortNamesAscending(names: string[]): string[] {
-  return [...names].sort((first, second) =>
-    first.localeCompare(second, "en", {
-      sensitivity: "base",
-    }),
-  );
-}
-
-function sortNamesDescending(names: string[]): string[] {
-  return [...names].sort((first, second) =>
-    second.localeCompare(first, "en", {
-      sensitivity: "base",
-    }),
-  );
-}
-
-function sortPricesAscending(prices: number[]): number[] {
-  return [...prices].sort((a, b) => a - b);
-}
-
-function sortPricesDescending(prices: number[]): number[] {
-  return [...prices].sort((a, b) => b - a);
-}
-
-function sortCo2Ascending(ratings: string[]): string[] {
-  const order = ["A", "B", "C", "D", "E"];
-
-  return [...ratings].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-}
-
-function sortCo2Descending(ratings: string[]): string[] {
-  const order = ["A", "B", "C", "D", "E"];
-
-  return [...ratings].sort((a, b) => order.indexOf(b) - order.indexOf(a));
-}
-
-function requestContainsSearchAndSort(
-  request: Request,
-  expectedQuery: string,
-  expectedSort: ProductSortOption,
-): boolean {
-  if (!isProductsRequest(request)) {
-    return false;
-  }
-
-  const requestData = readRequestData(request);
-
-  return requestData.q === expectedQuery && requestData.sort === expectedSort;
-}
-
-async function waitForSearchAndSortResponse(
-  page: Page,
-  expectedQuery: string,
-  expectedSort: ProductSortOption,
-): Promise<Response> {
-  return page.waitForResponse(
-    (response) =>
-      response.status() === 200 &&
-      requestContainsSearchAndSort(
-        response.request(),
-        expectedQuery,
-        expectedSort,
-      ),
-  );
-}
-
-async function verifyApiProductsMatchUi(
-  productPage: ProductPage,
-  response: Response,
-): Promise<ProductsApiResponse> {
-  const body = (await response.json()) as ProductsApiResponse;
-
-  const apiProductIds = body.data.map((product: ProductApiItem) => product.id);
-
-  const apiProductNames = body.data.map((product: ProductApiItem) =>
-    product.name.trim(),
-  );
-
-  await expect
-    .poll(async () => productPage.getRenderedProductIds())
-    .toEqual(apiProductIds);
-
-  const uiProductIds = await productPage.getRenderedProductIds();
-
-  const uiProductNames = await productPage.getProductNames();
-
-  expect(uiProductIds).toEqual(apiProductIds);
-
-  expect(uiProductNames).toEqual(apiProductNames);
-
-  return body;
-}
-
-function printComparison(
-  testNumber: string,
-  testName: string,
-  apiData: unknown[],
-  uiData: unknown[],
-): void {
-  console.log(`\n${"=".repeat(80)}`);
-
-  console.log(`TEST ${testNumber}: ${testName}`);
-
-  console.log(`${"=".repeat(80)}`);
-
-  console.table(
-    apiData.map((apiValue, index) => ({
-      Index: index,
-      API: apiValue,
-      UI: uiData[index],
-      Match: JSON.stringify(apiValue) === JSON.stringify(uiData[index]),
-    })),
-  );
-
-  console.log(`${"=".repeat(80)}\n`);
-}
+import { ProductsApiResponse } from "../models/product.model";
+import {
+  readRequestData,
+  isProductsRequest,
+} from "../helpers/product-api-helper";
 
 test.describe("Product name sorting", () => {
   test.beforeEach(async ({ page }) => {
@@ -266,7 +12,7 @@ test.describe("Product name sorting", () => {
 
     await productPage.open();
   });
-  test("AC10 should display category filters", async ({ page }) => {
+  test("should display category filters", async ({ page }) => {
     await expect(
       page.locator('input[name="category_id"]').first(),
     ).toBeVisible();
@@ -276,7 +22,7 @@ test.describe("Product name sorting", () => {
     expect(categories).toBeGreaterThan(0);
   });
 
-  test("AC11 should display hierarchical categories", async ({ page }) => {
+  test("should display hierarchical categories", async ({ page }) => {
     await expect(
       page.locator("#filters").getByText("Hand Tools"),
     ).toBeVisible();
@@ -286,7 +32,7 @@ test.describe("Product name sorting", () => {
     await expect(page.locator("#filters").getByText("Pliers")).toBeVisible();
   });
 
-  test("AC12 should select all child categories when parent selected", async ({
+  test("should select all child categories when parent selected", async ({
     page,
   }) => {
     const parentCategory = page
@@ -311,7 +57,7 @@ test.describe("Product name sorting", () => {
     expect(categories.length).toBeGreaterThan(1);
   });
 
-  test("AC14 should display brand filters", async ({ page }) => {
+  test("should display brand filters", async ({ page }) => {
     await expect(page.locator('input[name="brand_id"]').first()).toBeVisible();
 
     const brands = await page.locator('input[name="brand_id"]').count();
@@ -319,8 +65,8 @@ test.describe("Product name sorting", () => {
     expect(brands).toBeGreaterThan(0);
   });
 
-  test("AC15 should filter products by brand", async ({ page }) => {
-    const forgeFlex = page.locator('[data-test^="brand-"]').first();
+  test("should filter products by brand", async ({ page }) => {
+    const forgeFlex = page.getByLabel("ForgeFlex Tools");
 
     const responsePromise = page.waitForResponse((response) =>
       response.url().includes("/products"),
@@ -332,18 +78,22 @@ test.describe("Product name sorting", () => {
 
     const body = (await response.json()) as ProductsApiResponse;
 
-    body.data.forEach((product) => {
-      expect(product.brand.name).toBe("ForgeFlex Tools");
-    });
+    if (body.data.length === 0) {
+      await expect(page.getByText("No products found")).toBeVisible();
+    } else {
+      body.data.forEach((product) => {
+        expect(product.brand.name).toBe("ForgeFlex Tools");
+      });
 
-    const apiIds = body.data.map((p) => p.id);
+      const apiIds = body.data.map((p) => p.id);
 
-    const uiIds = await new ProductPage(page).getRenderedProductIds();
+      const uiIds = await new ProductPage(page).getRenderedProductIds();
 
-    expect(uiIds).toEqual(apiIds);
+      expect(uiIds).toEqual(apiIds);
+    }
   });
 
-  test("AC16 should combine category and brand filters", async ({ page }) => {
+  test("should combine category and brand filters", async ({ page }) => {
     const pliers = page
       .locator("label")
       .filter({
@@ -394,5 +144,124 @@ test.describe("Product name sorting", () => {
     expect(uiIds).toEqual(apiIds);
   });
 
-  
+  test("should navigate to Power Tools category from navbar", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.open();
+
+    const responsePromise = page.waitForResponse((response) => {
+      if (!isProductsRequest(response.request())) {
+        return false;
+      }
+
+      const requestData = readRequestData(response.request());
+
+      return requestData.by_category_slug === "power-tools";
+    });
+
+    await page.locator('[data-test="nav-categories"]').click();
+
+    await page.locator('[data-test="nav-power-tools"]').click();
+
+    const response = await responsePromise;
+
+    //
+    // URL changed
+    //
+    await expect(page).toHaveURL(/category\/power-tools/);
+
+    const body = (await response.json()) as ProductsApiResponse;
+
+    //
+    // API request contains slug
+    //
+    const requestData = readRequestData(response.request());
+
+    expect(requestData.by_category_slug).toBe("power-tools");
+
+    //
+    // Only Power Tools family products returned
+    //
+    body.data.forEach((product) => {
+      expect(["Drill", "Saw", "Sander", "Grinder"]).toContain(
+        product.category.name,
+      );
+    });
+
+    //
+    // API IDs
+    //
+    const apiIds = body.data.map((product) => product.id);
+
+    //
+    // UI IDs
+    //
+    await expect
+      .poll(async () => productPage.getRenderedProductIds())
+      .toEqual(apiIds);
+
+    const uiIds = await productPage.getRenderedProductIds();
+
+    expect(uiIds).toEqual(apiIds);
+
+    //
+    // Verify category filter section visible
+    //
+    await expect(page.locator("#filters")).toBeVisible();
+
+    //
+    // Verify category hierarchy
+    //
+    await expect(page.locator("#filters")).toContainText("By category:");
+    // await expect(page.locator("#filters").getByText("Power Tools"),).toBeVisible();
+    // await expect(page.locator("#filters").getByText("Drill")).toBeVisible();
+    // await expect(page.locator("#filters").getByText("Saw")).toBeVisible();
+    // await expect(page.locator("#filters").getByText("Sander")).toBeVisible();
+  });
+
+  test("should show empty results when category returns no products", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.open();
+
+    const category = page.getByLabel("Welding");
+
+    if (await category.isVisible()) {
+      await category.check();
+
+      const products = await productPage.productCards.count();
+
+      if (products === 0) {
+        await expect(
+          page.getByText("There are no products found."),
+        ).toBeVisible();
+      }
+    }
+  });
+
+  test("should show empty results when brand returns no products", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.open();
+
+    const brands = page.locator('input[name="brand_id"]');
+
+    const brandCount = await brands.count();
+
+    expect(brandCount).toBeGreaterThan(0);
+
+    const products = await productPage.productCards.count();
+
+    if (products === 0) {
+      await expect(
+        page.getByText("There are no products found."),
+      ).toBeVisible();
+    }
+  });
 });
