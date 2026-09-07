@@ -236,30 +236,6 @@ async function verifyApiProductsMatchUi(
   return body;
 }
 
-function printComparison(
-  testNumber: string,
-  testName: string,
-  apiData: unknown[],
-  uiData: unknown[],
-): void {
-  console.log(`\n${"=".repeat(80)}`);
-
-  console.log(`TEST ${testNumber}: ${testName}`);
-
-  console.log(`${"=".repeat(80)}`);
-
-  console.table(
-    apiData.map((apiValue, index) => ({
-      Index: index,
-      API: apiValue,
-      UI: uiData[index],
-      Match: JSON.stringify(apiValue) === JSON.stringify(uiData[index]),
-    })),
-  );
-
-  console.log(`${"=".repeat(80)}\n`);
-}
-
 test.describe("Product Pagination", () => {
   test.beforeEach(async ({ page }) => {
     const productPage = new ProductPage(page);
@@ -267,7 +243,7 @@ test.describe("Product Pagination", () => {
     await productPage.open();
   });
 
-  test("AC3 should display pagination controls", async ({ page }) => {
+  test("should display pagination controls", async ({ page }) => {
     const pagination = page.locator(".pagination");
 
     await expect(pagination).toBeVisible();
@@ -281,7 +257,7 @@ test.describe("Product Pagination", () => {
     expect(await pageNumbers.count()).toBeGreaterThan(1);
   });
 
-  test("AC4 should navigate to next page", async ({ page }) => {
+  test("should navigate to next page", async ({ page }) => {
     const productPage = new ProductPage(page);
 
     //

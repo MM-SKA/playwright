@@ -78,3 +78,47 @@ test.describe("Price range filtering", () => {
     expect(body.data.length).toBeGreaterThan(0);
   });
 });
+
+test("should not move minimum price slider below allowed value", async ({
+  page,
+}) => {
+  const productPage = new ProductPage(page);
+
+  await productPage.open();
+
+  const minSlider = page.locator(".ngx-slider-pointer-min");
+
+  const initialValue = Number(await minSlider.getAttribute("aria-valuenow"));
+
+  await minSlider.focus();
+
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press("ArrowLeft");
+  }
+
+  const currentValue = Number(await minSlider.getAttribute("aria-valuenow"));
+
+  expect(currentValue).toBe(0);
+});
+
+test("should not move maximum price slider above allowed value", async ({
+  page,
+}) => {
+  const productPage = new ProductPage(page);
+
+  await productPage.open();
+
+  const maxSlider = page.locator(".ngx-slider-pointer-max");
+
+  const initialValue = Number(await maxSlider.getAttribute("aria-valuenow"));
+
+  await maxSlider.focus();
+
+  for (let i = 0; i < 120; i++) {
+    await page.keyboard.press("ArrowRight");
+  }
+
+  const currentValue = Number(await maxSlider.getAttribute("aria-valuenow"));
+
+  expect(currentValue).toBe(200);
+});

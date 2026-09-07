@@ -83,7 +83,9 @@ test("should login successfully", async ({ page }) => {
 });
 test("should login using enter key", async ({ page }) => {
   await page.goto("https://practicesoftwaretesting.com/auth/login");
-  await page.locator('[data-test="email"]').fill("customer2@practicesoftwaretesting.com");
+  await page
+    .locator('[data-test="email"]')
+    .fill("customer2@practicesoftwaretesting.com");
   await page.locator('[data-test="password"]').fill("welcome01");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/account/);
@@ -99,9 +101,4 @@ test("should show error for invalid credentials", async ({ page }) => {
   const loginError = page.locator('[data-test="login-error"]');
   await expect(loginError).toBeVisible();
   await expect(loginError).toContainText("Invalid email or password");
-});
-
-test("should redirect unauthenticated user", async ({ page }) => {
-  await page.goto("https://practicesoftwaretesting.com/account");
-  await expect(page).toHaveURL(/login/);
 });

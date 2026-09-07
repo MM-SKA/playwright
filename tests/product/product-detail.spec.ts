@@ -15,7 +15,7 @@ import {
 } from "../helpers/api-matchers";
 
 test.describe("Product Detail", () => {
-  test("AC1 should display product information", async ({ page }) => {
+  test("should display product information", async ({ page }) => {
     const productsPage = new ProductPage(page);
 
     const detailPage = new ProductDetailPage(page);
@@ -48,7 +48,7 @@ test.describe("Product Detail", () => {
     );
   });
 
-  test("AC2-AC5 should handle quantity controls", async ({ page }) => {
+  test("should handle quantity controls", async ({ page }) => {
     const productsPage = new ProductPage(page);
 
     const detailPage = new ProductDetailPage(page);
@@ -72,7 +72,7 @@ test.describe("Product Detail", () => {
     await expect(detailPage.quantityInput).toHaveValue("1");
   });
 
-  test("AC6 should allow manual quantity entry", async ({ page }) => {
+  test("should allow manual quantity entry", async ({ page }) => {
     const productsPage = new ProductPage(page);
 
     const detailPage = new ProductDetailPage(page);
@@ -86,7 +86,7 @@ test.describe("Product Detail", () => {
     await expect(detailPage.quantityInput).toHaveValue("25");
   });
 
-  test("AC9 should display related products", async ({ page }) => {
+  test("should display related products", async ({ page }) => {
     const productsPage = new ProductPage(page);
 
     await productsPage.open();

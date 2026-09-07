@@ -3,7 +3,7 @@ import { LoginPage } from "../pages/login.page";
 import { ProductPage } from "../pages/product.page";
 
 test.describe("Favorites - Anonymous", () => {
-  test("1. should show unauthorized toast when user is not logged in", async ({
+  test("should show unauthorized toast when user is not logged in", async ({
     page,
   }) => {
     await page.goto("https://practicesoftwaretesting.com");
@@ -25,10 +25,9 @@ test.describe("Favorites - Authenticated", () => {
     const loginPage = new LoginPage(page);
     await loginPage.open();
     await loginPage.login("test@test.com", "Samarth3005@");
-    console.log("URL after login:", page.url());
     await page.goto("https://practicesoftwaretesting.com");
   });
-  test("2. should add product to favourites", async ({ page }) => {
+  test("should add product to favourites", async ({ page }) => {
     await page.locator('[data-test^="product-"]').first().click();
 
     const productId = page.url().split("/product/")[1];
@@ -60,7 +59,7 @@ test.describe("Favorites - Authenticated", () => {
     await expect(successToast).toBeVisible();
   });
 
-  test("3. should not allow duplicate favourites", async ({ page }) => {
+  test("should not allow duplicate favourites", async ({ page }) => {
     await page.locator('[data-test^="product-"]').first().click();
 
     //
@@ -101,7 +100,7 @@ test.describe("Favorites - Authenticated", () => {
     );
   });
 
-  test("4. should view and remove favourite", async ({ page }) => {
+  test("should view and remove favourite", async ({ page }) => {
     //
     // Open account menu
     //
@@ -113,7 +112,6 @@ test.describe("Favorites - Authenticated", () => {
     await page.locator('[data-test="nav-my-favorites"]').click();
 
     await expect(page).toHaveURL(/account\/favorites/);
-    await page.pause();
 
     //
     // Favorites page title
@@ -142,8 +140,6 @@ test.describe("Favorites - Authenticated", () => {
 
     const favoriteId = await firstCard.getAttribute("data-test");
 
-    console.log("Removing:", favoriteId);
-
     //
     // DELETE favorite request
     //
@@ -166,6 +162,5 @@ test.describe("Favorites - Authenticated", () => {
     // Card count reduced
     //
     await expect(favoriteCards).toHaveCount(favoriteCount - 1);
-    await page.pause();
   });
 });

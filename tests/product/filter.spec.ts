@@ -12,7 +12,7 @@ test.describe("Product name sorting", () => {
 
     await productPage.open();
   });
-  test("AC10 should display category filters", async ({ page }) => {
+  test("should display category filters", async ({ page }) => {
     await expect(
       page.locator('input[name="category_id"]').first(),
     ).toBeVisible();
@@ -22,7 +22,7 @@ test.describe("Product name sorting", () => {
     expect(categories).toBeGreaterThan(0);
   });
 
-  test("AC11 should display hierarchical categories", async ({ page }) => {
+  test("should display hierarchical categories", async ({ page }) => {
     await expect(
       page.locator("#filters").getByText("Hand Tools"),
     ).toBeVisible();
@@ -32,7 +32,7 @@ test.describe("Product name sorting", () => {
     await expect(page.locator("#filters").getByText("Pliers")).toBeVisible();
   });
 
-  test("AC12 should select all child categories when parent selected", async ({
+  test("should select all child categories when parent selected", async ({
     page,
   }) => {
     const parentCategory = page
@@ -57,7 +57,7 @@ test.describe("Product name sorting", () => {
     expect(categories.length).toBeGreaterThan(1);
   });
 
-  test("AC14 should display brand filters", async ({ page }) => {
+  test("should display brand filters", async ({ page }) => {
     await expect(page.locator('input[name="brand_id"]').first()).toBeVisible();
 
     const brands = await page.locator('input[name="brand_id"]').count();
@@ -65,7 +65,7 @@ test.describe("Product name sorting", () => {
     expect(brands).toBeGreaterThan(0);
   });
 
-  test("AC15 should filter products by brand", async ({ page }) => {
+  test("should filter products by brand", async ({ page }) => {
     const forgeFlex = page.locator('[data-test^="brand-"]').first();
 
     const responsePromise = page.waitForResponse((response) =>
@@ -93,7 +93,7 @@ test.describe("Product name sorting", () => {
     }
   });
 
-  test("AC16 should combine category and brand filters", async ({ page }) => {
+  test("should combine category and brand filters", async ({ page }) => {
     const pliers = page
       .locator("label")
       .filter({
@@ -219,5 +219,49 @@ test.describe("Product name sorting", () => {
     // await expect(page.locator("#filters").getByText("Drill")).toBeVisible();
     // await expect(page.locator("#filters").getByText("Saw")).toBeVisible();
     // await expect(page.locator("#filters").getByText("Sander")).toBeVisible();
+  });
+
+  test("should show empty results when category returns no products", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.open();
+
+    const category = page.getByLabel("Welding");
+
+    if (await category.isVisible()) {
+      await category.check();
+
+      const products = await productPage.productCards.count();
+
+      if (products === 0) {
+        await expect(
+          page.getByText("There are no products found."),
+        ).toBeVisible();
+      }
+    }
+  });
+
+  test("should show empty results when brand returns no products", async ({
+    page,
+  }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.open();
+
+    const brands = page.locator('input[name="brand_id"]');
+
+    const brandCount = await brands.count();
+
+    expect(brandCount).toBeGreaterThan(0);
+
+    const products = await productPage.productCards.count();
+
+    if (products === 0) {
+      await expect(
+        page.getByText("There are no products found."),
+      ).toBeVisible();
+    }
   });
 });
