@@ -17,5 +17,5 @@ export async function addProductToCart(page: Page) {
 
   await page.locator('[data-test="add-to-cart"]').click();
 
-  await expect(page.locator(".toast-success")).toBeVisible();
+  await expect(page.getByText("Product added to shopping cart.")).toBeVisible();
 }

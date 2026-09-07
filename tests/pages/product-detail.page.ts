@@ -5,7 +5,6 @@ import { AddToCartRequest, AddToCartResponse } from "../models/cart.model";
 import { SelectedCartProduct } from "../models/product.model";
 
 import {
-  baseUrl,
   getCartIdFromResponse,
   isCartPostResponse,
 } from "../helpers/api-matchers";
@@ -36,7 +35,7 @@ export class ProductDetailPage {
 
     this.brandBadge = page.locator('[aria-label="brand"]');
 
-    this.productImage = page.locator("figure img");
+    this.productImage = page.locator('[data-test="product-image"]');
 
     this.quantityInput = page.locator('[data-test="quantity"]');
 
@@ -54,7 +53,7 @@ export class ProductDetailPage {
   }
 
   async open(productId: string): Promise<void> {
-    await this.page.goto(`${baseUrl}/product/${productId}`, {
+    await this.page.goto(`/product/${productId}`, {
       waitUntil: "domcontentloaded",
     });
 
@@ -63,7 +62,7 @@ export class ProductDetailPage {
 
   async setQuantity(quantity: number): Promise<void> {
     if (!Number.isInteger(quantity)) {
-      throw new Error(`Quantity must be an integer. Received: ${quantity}`);
+      throw new TypeError(`Quantity must be an integer. Received: ${quantity}`);
     }
 
     if (quantity < 1) {

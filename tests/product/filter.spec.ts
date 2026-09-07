@@ -66,7 +66,7 @@ test.describe("Product name sorting", () => {
   });
 
   test("should filter products by brand", async ({ page }) => {
-    const forgeFlex = page.locator('[data-test^="brand-"]').first();
+    const forgeFlex = page.getByLabel("ForgeFlex Tools");
 
     const responsePromise = page.waitForResponse((response) =>
       response.url().includes("/products"),

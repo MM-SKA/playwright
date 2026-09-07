@@ -3,8 +3,6 @@ import { expect, Locator, Page } from "@playwright/test";
 import { CartItem, CartResponse } from "../models/cart.model";
 
 import { calculateLineTotal, parseMoney } from "../helpers/price.helper";
-
-import { baseUrl } from "../helpers/api-matchers";
 export class CartPage {
   readonly cartRows: Locator;
   readonly cartTotal: Locator;
@@ -19,7 +17,7 @@ export class CartPage {
   }
 
   async open(): Promise<void> {
-    await this.page.goto(`${baseUrl}/checkout`, {
+    await this.page.goto(`/checkout`, {
       waitUntil: "domcontentloaded",
     });
   }

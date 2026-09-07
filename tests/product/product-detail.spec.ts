@@ -44,7 +44,7 @@ test.describe("Product Detail", () => {
 
     await expect(detailPage.productImage).toHaveAttribute(
       "src",
-      new RegExp(product.product_image.file_name),
+      expect.stringContaining(product.product_image.file_name),
     );
   });
 

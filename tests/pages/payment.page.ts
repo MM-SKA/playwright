@@ -1,7 +1,7 @@
-import { Page, expect, test } from "@playwright/test";
+import { Page, expect} from "@playwright/test";
 
 export class PaymentPage {
-  constructor(private page: Page) {}
+  constructor(private readonly page: Page) {}
 
   get paymentMethod() {
     return this.page.locator('[data-test="payment-method"]');
