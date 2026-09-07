@@ -21,7 +21,7 @@ export class LoginPage {
   }
 
   async open(): Promise<void> {
-    await this.page.goto("https://practicesoftwaretesting.com/auth/login");
+    await this.page.goto("/auth/login");
   }
 
   async login(email: string, password: string): Promise<void> {

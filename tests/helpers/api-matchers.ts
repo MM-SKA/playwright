@@ -1,6 +1,6 @@
 import { Response } from "@playwright/test";
 
-export const baseUrl = "https://practicesoftwaretesting.com";
+export const baseUrl = "/";
 
 export const apiHost = "api.practicesoftwaretesting.com";
 

@@ -68,7 +68,7 @@ export class RegistrationPage {
   }
 
   async open(): Promise<void> {
-    await this.page.goto("https://practicesoftwaretesting.com/auth/register", {
+    await this.page.goto("/auth/register", {
       waitUntil: "domcontentloaded",
     });
     await this.firstNameInput.waitFor({

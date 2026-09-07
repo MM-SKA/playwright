@@ -6,7 +6,7 @@ test.describe("Favorites - Anonymous", () => {
   test("should show unauthorized toast when user is not logged in", async ({
     page,
   }) => {
-    await page.goto("https://practicesoftwaretesting.com");
+    await page.goto("/");
 
     await page.locator('[data-test^="product-"]').first().click();
 
@@ -25,7 +25,7 @@ test.describe("Favorites - Authenticated", () => {
     const loginPage = new LoginPage(page);
     await loginPage.open();
     await loginPage.login("test@test.com", "Samarth3005@");
-    await page.goto("https://practicesoftwaretesting.com");
+    await page.goto("/");
   });
   test("should add product to favourites", async ({ page }) => {
     await page.locator('[data-test^="product-"]').first().click();

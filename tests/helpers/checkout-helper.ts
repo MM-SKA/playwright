@@ -1,7 +1,7 @@
 import { expect, Page } from "@playwright/test";
 
 export async function addProductToCart(page: Page) {
-  await page.goto("https://practicesoftwaretesting.com", {
+  await page.goto("/", {
     waitUntil: "domcontentloaded",
   });
 

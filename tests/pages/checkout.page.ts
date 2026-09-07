@@ -1,10 +1,10 @@
-import { Page, expect, test } from "@playwright/test";
+import { Page } from "@playwright/test";
 
 export class CheckoutPage {
   constructor(private page: Page) {}
 
   async openCheckout() {
-    await this.page.goto("https://practicesoftwaretesting.com/checkout");
+    await this.page.goto("/checkout");
   }
 
   async proceedFromCart() {

@@ -48,7 +48,7 @@ export class ProductPage {
   }
 
   async open(): Promise<void> {
-    await this.page.goto("https://practicesoftwaretesting.com", {
+    await this.page.goto("/", {
       waitUntil: "domcontentloaded",
     });
 
