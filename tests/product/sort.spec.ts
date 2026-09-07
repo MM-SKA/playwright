@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { ProductPage} from "../pages/product.page";
+import { ProductPage } from "../pages/product.page";
 
 import { ProductsApiResponse, ProductApiItem } from "../models/product.model";
 import {
@@ -137,21 +137,25 @@ test.describe("Product name sorting", () => {
   test("should send the selected ascending sort value", async ({ page }) => {
     const productPage = new ProductPage(page);
 
-    const requestPromise = page.waitForRequest((request) =>
-      requestContainsSort(request, "name,asc"),
-    );
+    const responsePromise = waitForSortedResponse(page, "name,asc");
 
     await productPage.selectSort("name,asc");
 
-    const request = await requestPromise;
+    const response = await responsePromise;
 
-    const requestUrl = new URL(request.url());
+    const body = (await response.json()) as ProductsApiResponse;
 
-    const requestData = readRequestData(request);
+    const requestData = readRequestData(response.request());
 
-    const sortValue = requestUrl.searchParams.get("sort") ?? requestData.sort;
+    expect(requestData.sort).toBe("name,asc");
 
-    expect(sortValue).toBe("name,asc");
+    const apiNames = body.data.map((p) => p.name.trim());
+
+    const uiNames = await productPage.getProductNames();
+
+    expect(uiNames).toEqual(apiNames);
+
+    expect(apiNames).toEqual(sortNamesAscending(apiNames));
   });
 
   test("should change API and UI order from ascending to descending", async ({

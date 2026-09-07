@@ -78,15 +78,19 @@ test.describe("Product name sorting", () => {
 
     const body = (await response.json()) as ProductsApiResponse;
 
-    body.data.forEach((product) => {
-      expect(product.brand.name).toBe("ForgeFlex Tools");
-    });
+    if (body.data.length === 0) {
+      await expect(page.getByText("No products found")).toBeVisible();
+    } else {
+      body.data.forEach((product) => {
+        expect(product.brand.name).toBe("ForgeFlex Tools");
+      });
 
-    const apiIds = body.data.map((p) => p.id);
+      const apiIds = body.data.map((p) => p.id);
 
-    const uiIds = await new ProductPage(page).getRenderedProductIds();
+      const uiIds = await new ProductPage(page).getRenderedProductIds();
 
-    expect(uiIds).toEqual(apiIds);
+      expect(uiIds).toEqual(apiIds);
+    }
   });
 
   test("AC16 should combine category and brand filters", async ({ page }) => {
